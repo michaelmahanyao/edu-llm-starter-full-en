@@ -1,268 +1,136 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <title>AI Tutor — Step-by-Step Solver</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <!-- 可选：MathJax 渲染 LaTeX（后端若返回 latex 字段会自动渲染） -->
-  <script>
-    window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
-  </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <style>
-    :root{--bg:#0b1021;--card:#111735;--text:#eef2ff;--muted:#94a3b8;--accent:#60a5fa;--border:#263056;--good:#22c55e;--warn:#f59e0b}
-    html,body{height:100%}
-    body{margin:0;background:linear-gradient(135deg,#0f172a,#0b1021);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:980px;margin:40px auto;padding:20px}
-    .card{background:var(--card);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.35);padding:22px;border:1px solid var(--border)}
-    h1{margin:0 0 6px;font-size:28px}
-    .sub{color:var(--muted);margin:0 0 16px}
-    label{display:block;margin:14px 0 6px;color:#cbd5e1}
-    textarea{width:100%;min-height:120px;border:1px solid var(--border);background:#0b1021;color:var(--text);padding:12px;border-radius:10px}
-    input,select{border:1px solid var(--border);background:#0b1021;color:var(--text);padding:10px;border-radius:10px;width:100%}
-    .row{display:flex;gap:12px;flex-wrap:wrap}
-    .row>*{flex:1 1 240px}
-    .btn{background:var(--accent);border:0;color:#0b1021;padding:12px 18px;border-radius:12px;font-weight:700;cursor:pointer}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .tiny{font-size:12px;color:var(--muted)}
-    .grid{display:grid;gap:14px}
-    .sec{background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:14px}
-    .sec h3{margin:0 0 8px;font-size:18px}
-    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;background:#0b1021;border:1px solid var(--border);color:#cbd5e1;font-size:12px}
-    .kvs{display:grid;gap:8px}
-    .kvs .item{display:flex;gap:10px}
-    .kvs .key{min-width:150px;color:#a5b4fc}
-    ul{margin:6px 0 0 18px}
-    .ok{color:var(--good)} .warn{color:var(--warn)}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .ghost{background:transparent;border:1px solid var(--border);color:#cbd5e1;padding:10px 12px;border-radius:10px;cursor:pointer}
-    pre.raw{white-space:pre-wrap;background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:12px;max-height:420px;overflow:auto}
-
-    /* 图片上传/预览 */
-    .photo-box{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
-    .thumb{width:160px;height:120px;object-fit:cover;border:1px solid var(--border);border-radius:10px;background:#0b1021}
-    .hint{color:#a5b4fc;font-size:13px}
-    .danger{border-color:#ef4444;color:#ef4444}
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0d1224;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1a2038;
+      padding: 20px;
+      border-radius: 12px;
+      width: 600px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 22px;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: bold;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    button {
+      background-color: #3b82f6;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    pre {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>AI Tutor — Step-by-Step Solver</h1>
-      <p class="sub">Enter a problem or upload a photo, choose difficulty, click <b>Solve</b>. Uses <code>/v1/solve</code>.</p>
+  <div class="container">
+    <h1>AI Tutor — Step-by-Step Solver</h1>
 
-      <div class="row">
-        <div>
-          <label>API Base</label>
-          <input id="base" placeholder="auto detect (leave empty)">
-        </div>
-        <div>
-          <label>API Key (<code>x-api-key</code>)</label>
-          <input id="key" value="mySecretKey2025">
-        </div>
-        <div>
-          <label>Difficulty</label>
-          <select id="diff"><option>easy</option><option selected>medium</option><option>hard</option></select>
-        </div>
-      </div>
+    <label>API Base</label>
+    <input id="apiBase" placeholder="auto detect (leave empty)" />
 
-      <!-- 图片识题 -->
-      <label style="margin-top:12px">Photo (optional)</label>
-      <div class="photo-box">
-        <input id="file" type="file" accept="image/*" />
-        <img id="preview" class="thumb" alt="preview" style="display:none;">
-        <button id="clearPhoto" class="ghost" style="display:none;">Clear Photo</button>
-        <div class="hint">You can either type the problem (below) or upload a photo. If both are provided, the model may use both.</div>
-      </div>
+    <label>API Key (x-api-key)</label>
+    <input id="apiKeyInput" placeholder="your API key" />
 
-      <label style="margin-top:12px">Problem</label>
-      <textarea id="q" placeholder="Type the problem here…">Solve 2x + 3 = 11</textarea>
+    <label>Difficulty</label>
+    <select id="difficultySelect">
+      <option value="easy">easy</option>
+      <option value="medium" selected>medium</option>
+      <option value="hard">hard</option>
+    </select>
 
-      <div class="toolbar">
-        <button id="go" class="btn">Solve</button>
-        <button id="copy" class="ghost" title="Copy JSON result" disabled>Copy JSON</button>
-        <button id="toggle" class="ghost" title="Toggle raw JSON" disabled>Show Raw</button>
-        <span id="status" class="tiny"></span>
-      </div>
+    <label>Problem</label>
+    <textarea id="problemInput" placeholder="Enter your problem..."></textarea>
 
-      <div id="result" class="grid" style="margin-top:14px"></div>
-      <pre id="raw" class="raw" style="display:none;"></pre>
+    <label>Upload Problem Image</label>
+    <input type="file" id="imageInput" accept="image/*">
 
-      <p class="tiny" style="margin-top:10px">
-        Tip: set <code>DEMO_MODE=true</code> (no external LLM) or provide <code>PROVIDER_API_KEY</code> and
-        <code>PROVIDER_BASE_URL</code> in environment to use real models. For photo solving, use a vision-capable model (e.g., gpt-4o / gpt-4o-mini).
-      </p>
-    </div>
+    <button id="solveBtn">Solve</button>
+
+    <h3>Result</h3>
+    <pre id="result">Result will appear here…</pre>
   </div>
 
-<script>
-const $ = id => document.getElementById(id);
-const apiBase = () => $('base').value.trim() || location.origin;
+  <script>
+    document.getElementById("solveBtn").onclick = async () => {
+      const problem = document.getElementById("problemInput").value;
+      const difficulty = document.getElementById("difficultySelect").value;
+      const apiKey = document.getElementById("apiKeyInput").value;
+      const baseUrl = document.getElementById("apiBase").value || "";
+      const imageFile = document.getElementById("imageInput").files[0];
 
-let imageDataUrl = ''; // 保存选中的图片（data: URL）
+      let imageBase64 = null;
+      if (imageFile) {
+        imageBase64 = await toBase64(imageFile);
+      }
 
-// 读取图片为 data URL
-$('file').addEventListener('change', async (e)=>{
-  const f = e.target.files?.[0];
-  if (!f) { clearPhoto(); return; }
-  if (!f.type.startsWith('image/')) {
-    $('status').textContent = 'Please choose an image file.';
-    $('status').classList.add('danger');
-    setTimeout(()=>{ $('status').textContent=''; $('status').classList.remove('danger'); }, 1500);
-    clearPhoto(); return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    imageDataUrl = reader.result;        // data:image/png;base64,....
-    $('preview').src = imageDataUrl;
-    $('preview').style.display = 'block';
-    $('clearPhoto').style.display = 'inline-block';
-  };
-  reader.readAsDataURL(f);
-});
+      const res = await fetch((baseUrl || "") + "/v1/solve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey
+        },
+        body: JSON.stringify({
+          text: problem,
+          image_url: imageBase64,   // 👈 把拍照/上传的图片传到后端
+          difficulty: difficulty,
+          require_explanation: true
+        })
+      });
 
-function clearPhoto(){
-  imageDataUrl = '';
-  $('file').value = '';
-  $('preview').style.display = 'none';
-  $('preview').src = '';
-  $('clearPhoto').style.display = 'none';
-}
-
-function renderList(list) {
-  if (!list || !list.length) return '<span class="tiny">—</span>';
-  return '<ul>' + list.map(x => `<li>${escapeHtml(x)}</li>`).join('') + '</ul>';
-}
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-function renderKV(title, kv) {
-  const rows = Object.entries(kv || {}).filter(([,v]) => v!=null && v!=='' && !(Array.isArray(v) && v.length===0));
-  if (!rows.length) return '';
-  return `
-    <div class="sec">
-      <h3>${title}</h3>
-      <div class="kvs">
-        ${rows.map(([k,v]) => `
-          <div class="item">
-            <div class="key">${escapeHtml(k)}</div>
-            <div class="val">${Array.isArray(v) ? renderList(v) : escapeHtml(v)}</div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-}
-
-async function renderResult(data) {
-  const el = $('result');
-  const rawEl = $('raw');
-  $('copy').disabled = false;
-  $('toggle').disabled = false;
-  rawEl.textContent = JSON.stringify(data, null, 2);
-
-  const steps = Array.isArray(data.steps) ? data.steps : [];
-  const hints = Array.isArray(data.hints) ? data.hints : [];
-  const mistakes = Array.isArray(data.common_mistakes) ? data.common_mistakes : [];
-  const pedagogy = data.pedagogy_view || {};
-  const normalized = data.normalized_problem || {};
-  const latex = data.latex;
-  const finalAns =
-    (data.solution && (data.solution.final_answer || data.solution.answer)) ||
-    (steps.length ? steps[steps.length-1] : '');
-
-  let html = '';
-  html += renderKV('Problem', { text: normalized.text || data.text || $('q').value.trim() });
-
-  if (latex) {
-    html += `
-      <div class="sec">
-        <h3>LaTeX</h3>
-        <div>$$${escapeHtml(latex)}$$</div>
-      </div>`;
-  }
-
-  html += `
-    <div class="sec">
-      <h3>Steps</h3>
-      ${renderList(steps)}
-    </div>`;
-
-  if (finalAns) {
-    html += `
-      <div class="sec">
-        <h3>Final Answer <span class="badge ok">✓</span></h3>
-        <div style="font-size:18px;font-weight:700">${escapeHtml(finalAns)}</div>
-      </div>`;
-  }
-
-  if (hints.length)   html += `<div class="sec"><h3>Hints</h3>${renderList(hints)}</div>`;
-  if (mistakes.length) html += `<div class="sec"><h3>Common Mistakes</h3>${renderList(mistakes)}</div>`;
-  if (data.check)     html += `<div class="sec"><h3>Check</h3><div>${escapeHtml(data.check)}</div></div>`;
-
-  const pv = {};
-  if (pedagogy.socratic_questions?.length) pv['Socratic questions'] = pedagogy.socratic_questions;
-  if (pedagogy.misconceptions?.length)     pv['Misconceptions']    = pedagogy.misconceptions;
-  if (Object.keys(pv).length) html += renderKV('Pedagogy View', pv);
-
-  const meta = {};
-  if (data.problem_id) meta['problem_id'] = data.problem_id;
-  if (data.knowledge_tags?.length) meta['knowledge_tags'] = data.knowledge_tags;
-  if (Object.keys(meta).length) html += renderKV('Meta', meta);
-
-  el.innerHTML = html || '<div class="tiny">No content.</div>';
-  if (window.MathJax) await MathJax.typesetPromise();
-}
-
-$('toggle').onclick = () => {
-  const raw = $('raw');
-  raw.style.display = raw.style.display === 'none' ? 'block' : 'none';
-  $('toggle').textContent = raw.style.display === 'none' ? 'Show Raw' : 'Hide Raw';
-};
-$('copy').onclick = async () => {
-  const raw = $('raw').textContent;
-  await navigator.clipboard.writeText(raw);
-  $('status').textContent = 'Copied JSON';
-  setTimeout(()=> $('status').textContent = '', 1200);
-};
-
-$('go').onclick = async () => {
-  const base = apiBase();
-  const key  = $('key').value.trim();
-  const diff = $('diff').value;
-  const text = $('q').value.trim();
-
-  $('result').innerHTML = '';
-  $('raw').style.display = 'none';
-  $('status').textContent = 'Running…';
-  $('go').disabled = true; $('copy').disabled = true; $('toggle').disabled = true;
-
-  try {
-    const payload = {
-      text,                       // 可空；有图片也能解
-      difficulty: diff,
-      require_explanation: true
+      const data = await res.json();
+      document.getElementById("result").textContent = JSON.stringify(data, null, 2);
     };
-    if (imageDataUrl) payload.image_url = imageDataUrl; // 关键：把图片 data URL 一起发给 /v1/solve
 
-    const res = await fetch(base + '/v1/solve', {
-      method:'POST',
-      headers: { 'Content-Type':'application/json', 'x-api-key': key },
-      body: JSON.stringify(payload)
-    });
-    const raw = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}\n\n${raw}`);
-    let data;
-    try { data = JSON.parse(raw); }
-    catch { data = { steps: ['Raw response'], solution:{final_answer:''}, raw }; }
-    await renderResult(data);
-  } catch (err) {
-    $('result').innerHTML = `<div class="sec"><h3 class="warn">Error</h3><pre class="raw">${escapeHtml(err.message || err)}</pre></div>`;
-  } finally {
-    $('status').textContent = '';
-    $('go').disabled = false;
-  }
-};
-
-$('clearPhoto').onclick = (e)=>{ e.preventDefault(); clearPhoto(); };
-</script>
+    // helper: File → Base64
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+    }
+  </script>
 </body>
 </html>
