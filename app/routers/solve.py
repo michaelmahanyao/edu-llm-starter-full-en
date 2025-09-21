@@ -1,45 +1,325 @@
+from __future__ import annotations
+
+import os
+import re
+import json
 import uuid
-from fastapi import APIRouter, HTTPException
-from ..schemas import ProblemInput, SolveResponse
-from ..model_router import pick_model
-from ..llm_client import chat_completion
+import time
+import base64
+from typing import List, Optional, Tuple, Dict, Any
+
+import requests
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
-SYSTEM_PROMPT = (
-    "You are a patient K-12 tutor. Solve the problem step by step with clear reasoning. "
-    "Provide the final answer and a quick check. Keep an encouraging tone."
+# =========================
+# 环境变量 & 默认配置
+# =========================
+DEMO_MODE: bool = os.getenv("DEMO_MODE", "false").lower() == "true"
+
+# 真实模型：建议使用 OpenAI
+PROVIDER_API_KEY: str = os.getenv("PROVIDER_API_KEY", "")
+PROVIDER_BASE_URL: str = os.getenv("PROVIDER_BASE_URL", "https://api.openai.com/v1")
+
+# 视觉模型（图片 → 文本）
+VISION_MODEL: str = os.getenv("PROVIDER_VISION_MODEL", "gpt-4o-mini")
+# 文本模型（生成步骤/答案）
+TEXT_MODEL: str = os.getenv("PROVIDER_TEXT_MODEL", "gpt-4o-mini")
+
+HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "60"))
+
+# =========================
+# Pydantic 模型
+# =========================
+class ProblemInput(BaseModel):
+    text: Optional[str] = Field(default=None, description="题目文本，可留空，只传图片")
+    image_url: Optional[str] = Field(default=None, description="data URL 或 https URL")
+    grade_band: Optional[str] = Field(default=None, description="primary/middle/high 等")
+    subject: Optional[str] = Field(default="math", description="学科，如 math/physics 等")
+    knowledge_tags: List[str] = Field(default_factory=list)
+    difficulty: Optional[str] = Field(default="medium")
+    require_explanation: bool = Field(default=True)
+
+
+class Solution(BaseModel):
+    final_answer: Optional[str] = None
+
+
+class PedagogyView(BaseModel):
+    socratic_questions: List[str] = Field(default_factory=list)
+    misconceptions: List[str] = Field(default_factory=list)
+
+
+class NormalizedProblem(BaseModel):
+    text: str
+    latex: Optional[str] = None
+    knowledge_tags: List[str] = Field(default_factory=list)
+
+
+class ProblemOutput(BaseModel):
+    problem_id: str
+    normalized_problem: NormalizedProblem
+    latex: Optional[str] = None
+    knowledge_tags: List[str] = Field(default_factory=list)
+
+    # 解题主体
+    steps: List[str] = Field(default_factory=list)
+    hints: List[str] = Field(default_factory=list)
+    common_mistakes: List[str] = Field(default_factory=list)
+    check: Optional[str] = None
+    solution: Solution = Field(default_factory=Solution)
+    pedagogy_view: PedagogyView = Field(default_factory=PedagogyView)
+
+
+# =========================
+# 工具：data URL 识别/解析
+# =========================
+_DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<b64>.+)$", re.I)
+
+
+def is_data_url(s: str) -> bool:
+    return bool(_DATA_URL_RE.match(s or ""))
+
+
+def decode_data_url(data_url: str) -> Tuple[str, bytes]:
+    m = _DATA_URL_RE.match(data_url or "")
+    if not m:
+        raise ValueError("invalid data URL")
+    mime = m.group("mime")
+    b64 = m.group("b64")
+    return mime, base64.b64decode(b64)
+
+
+# =========================
+# 调用模型：视觉 OCR（图片 → 文本）
+# =========================
+def ocr_extract_text_with_vision(image_url: str) -> str:
+    """
+    使用视觉模型把图片转换为纯文本题目。
+    支持 data URL 和 https URL（OpenAI 视觉输入都可）。
+    """
+    if DEMO_MODE:
+        return "[DEMO] OCR skipped: please connect a real vision model."
+
+    if not PROVIDER_API_KEY:
+        return "[WARN] PROVIDER_API_KEY not set — cannot OCR the image."
+
+    url = f"{PROVIDER_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {PROVIDER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    prompt = (
+        "Extract ONLY the math/physics problem as clean plain text. "
+        "No extra words, no commentary. If diagrams are essential, briefly describe."
+    )
+
+    payload = {
+        "model": VISION_MODEL,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                ],
+            }
+        ],
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=HTTP_TIMEOUT)
+        if resp.status_code != 200:
+            return f"[OCR error] HTTP {resp.status_code}: {resp.text[:300]}"
+        data = resp.json()
+        text = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        return text or "[OCR] Empty result."
+    except Exception as e:
+        return f"[OCR exception] {e}"
+
+
+# =========================
+# 调用模型：文本模型完成“解题步骤/最终答案”生成
+# =========================
+SOLVE_SYS_PROMPT = (
+    "You are an expert math tutor. Given a problem, produce a JSON object with keys:\n"
+    "steps (array of strings; detailed step-by-step),\n"
+    "final_answer (string; concise result only),\n"
+    "hints (array), common_mistakes (array), check (string),\n"
+    "and pedagogy_view with socratic_questions (array) and misconceptions (array).\n"
+    "Return ONLY valid JSON, no extra text."
 )
 
-@router.post('/solve', response_model=SolveResponse)
-async def solve_problem(body: ProblemInput):
-    if not body.text and not body.image_url:
-        raise HTTPException(status_code=400, detail="either 'text' or 'image_url' must be provided")
-    model = pick_model(body.difficulty or 'medium')
-    user_content = body.text or f"Please solve the problem shown in the image: {body.image_url}"
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_content}
-    ]
-    result = await chat_completion(messages, model=model, temperature=0.2, max_tokens=700)
-    pid = f"prob_{uuid.uuid4().hex[:8]}"
-    solution_text = result['choices'][0]['message']['content']
-    return {
-        "problem_id": pid,
-        "normalized_problem": {
-            "text": body.text or "",
-            "latex": None,
-            "knowledge_tags": body.knowledge_tags or []
-        },
-        "solution": {
+
+def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> Dict[str, Any]:
+    """
+    使用文本模型生成解题步骤/答案。
+    DEMO_MODE: 返回固定演示数据。
+    真实模式: 调用 Chat Completions，要求返回 JSON。
+    """
+    if DEMO_MODE or not PROVIDER_API_KEY:
+        # —— DEMO 输出 —— #
+        return {
+            "steps": [
+                "[DEMO] This is a demo explanation:",
+                "1) Understand the question.",
+                "2) Set up and transform equations.",
+                "3) Verify the result.",
+                "Final answer: x = 4",
+            ],
             "final_answer": "see the end of the explanation",
-            "steps": solution_text.split('\n'),
-            "hints": ["Read the problem, identify knowns and unknowns", "Set up the equation and simplify", "Substitute back to check"],
-            "common_mistakes": ["Missing units", "Sign error when transposing terms"],
-            "check": "Steps reviewed; conclusion consistent"
-        },
-        "pedagogy_view": {
-            "socratic_questions": ["What does the problem ask for?", "What operation can we apply to both sides first?"],
-            "misconceptions": ["Confusing coefficients with exponents", "Dropping parentheses"]
+            "hints": [
+                "Read the problem, identify knowns and unknowns.",
+                "Neat the equation and simplify.",
+                "Substitute back to check",
+            ],
+            "common_mistakes": [
+                "Missing units",
+                "Sign error when transposing terms",
+            ],
+            "check": "Steps reviewed; conclusion consistent",
+            "pedagogy_view": {
+                "socratic_questions": [
+                    "What does the problem ask for?",
+                    "What operation can we apply to both sides first?",
+                ],
+                "misconceptions": [
+                    "Confusing coefficients with exponents",
+                    "Dropping parentheses",
+                ],
+            },
         }
+
+    # 真实模式：调用文本模型
+    url = f"{PROVIDER_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {PROVIDER_API_KEY}",
+        "Content-Type": "application/json",
     }
+
+    user_prompt = (
+        f"Difficulty: {difficulty}\n"
+        f"Problem:\n{problem_text}\n\n"
+        "Respond in JSON only."
+    )
+
+    payload = {
+        "model": TEXT_MODEL,
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": SOLVE_SYS_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        "response_format": {"type": "json_object"},  # OpenAI 新参数（确保返回 JSON）
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=HTTP_TIMEOUT)
+        if resp.status_code != 200:
+            # 尝试从错误中解析 JSON
+            raise HTTPException(status_code=500, detail=f"LLM error: {resp.text[:500]}")
+        data = resp.json()
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        # 解析 JSON
+        out = json.loads(content)
+        # 容错：必要字段兜底
+        out.setdefault("steps", [])
+        out.setdefault("final_answer", "")
+        out.setdefault("hints", [])
+        out.setdefault("common_mistakes", [])
+        out.setdefault("check", "")
+        out.setdefault("pedagogy_view", {"socratic_questions": [], "misconceptions": []})
+        return out
+    except Exception as e:
+        # 回落：返回基本结构 + 错误说明
+        return {
+            "steps": ["[ERROR] text-model exception", str(e)],
+            "final_answer": "",
+            "hints": [],
+            "common_mistakes": [],
+            "check": "",
+            "pedagogy_view": {"socratic_questions": [], "misconceptions": []},
+        }
+
+
+# =========================
+# /v1/solve 主路由
+# =========================
+@router.post("/v1/solve", response_model=ProblemOutput)
+async def solve_problem(input: ProblemInput, request: Request):
+    """
+    文本/图片 入口：
+    - 若有 image_url：先用视觉模型做 OCR → 得到题面文本
+    - 与 text 合并后交给文本模型生成步骤/答案
+    """
+    t0 = time.time()
+    raw_text = (input.text or "").strip()
+    image_url = (input.image_url or "").strip()
+    difficulty = (input.difficulty or "medium").lower()
+
+    # 1) OCR（图片 → 文本）
+    extracted_text = ""
+    if image_url:
+        # data URL / https URL 均可直接传给视觉模型
+        extracted_text = ocr_extract_text_with_vision(image_url)
+
+    # 2) 合并题面：优先文本；如果两者都有，拼接
+    problem_text = raw_text
+    if not problem_text and extracted_text:
+        problem_text = extracted_text
+    elif problem_text and extracted_text:
+        problem_text = f"{problem_text}\n\n[OCR]\n{extracted_text}"
+
+    if not problem_text:
+        raise HTTPException(status_code=400, detail="No problem text. Provide text or a valid image_url.")
+
+    # 3) 调用文本模型生成步骤/答案
+    solve_out = call_text_model_to_solve(problem_text, difficulty=difficulty)
+
+    # 4) 归一化输出
+    pid = f"prob_{uuid.uuid4().hex[:8]}"
+    normalized = NormalizedProblem(
+        text=problem_text,
+        latex=None,
+        knowledge_tags=input.knowledge_tags or [],
+    )
+
+    final = ProblemOutput(
+        problem_id=pid,
+        normalized_problem=normalized,
+        latex=None,
+        knowledge_tags=input.knowledge_tags or [],
+        steps=list(solve_out.get("steps", [])),
+        hints=list(solve_out.get("hints", [])),
+        common_mistakes=list(solve_out.get("common_mistakes", [])),
+        check=solve_out.get("check", None),
+        solution=Solution(final_answer=solve_out.get("final_answer") or ""),
+        pedagogy_view=PedagogyView(
+            socratic_questions=list(
+                (solve_out.get("pedagogy_view") or {}).get("socratic_questions", [])
+            ),
+            misconceptions=list(
+                (solve_out.get("pedagogy_view") or {}).get("misconceptions", [])
+            ),
+        ),
+    )
+
+    # 你也可以在这里记录日志/耗时
+    _elapsed = round((time.time() - t0) * 1000)
+    # print(f"/v1/solve handled in {_elapsed} ms")
+
+    return final
