@@ -1,136 +1,265 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>AI Tutor — Step-by-Step Solver</title>
+  <meta charset="utf-8" />
+  <title>AI Tutor — Solve & Chat</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #0d1224;
-      color: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      background: #1a2038;
-      padding: 20px;
-      border-radius: 12px;
-      width: 600px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.5);
-    }
-    h1 {
-      margin-top: 0;
-      font-size: 22px;
-      text-align: center;
-    }
-    label {
-      display: block;
-      margin: 10px 0 5px;
-      font-weight: bold;
-    }
-    input, select, textarea, button {
-      width: 100%;
-      padding: 10px;
-      border-radius: 6px;
-      border: none;
-      margin-bottom: 15px;
-      font-size: 14px;
-    }
-    textarea {
-      resize: vertical;
-      min-height: 100px;
-    }
-    button {
-      background-color: #3b82f6;
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #2563eb;
-    }
-    pre {
-      background: #0f172a;
-      padding: 10px;
-      border-radius: 8px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
+    :root{--bg:#0b1021;--card:#111735;--text:#eef2ff;--muted:#94a3b8;--accent:#60a5fa;--border:#263056;--good:#22c55e;--warn:#f59e0b}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(135deg,#0f172a,#0b1021);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:980px;margin:40px auto;padding:20px}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.35);padding:22px;border:1px solid var(--border)}
+    h1{margin:0 0 6px;font-size:28px}
+    .sub{color:var(--muted);margin:0 0 16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row>*{flex:1 1 240px}
+    label{display:block;margin:12px 0 6px;color:#cbd5e1}
+    input,select,textarea,button{border-radius:10px}
+    input,select,textarea{width:100%;border:1px solid var(--border);background:#0b1021;color:var(--text);padding:10px}
+    textarea{min-height:120px}
+    button{background:var(--accent);border:0;color:#0b1021;padding:12px 18px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .ghost{background:transparent;border:1px solid var(--border);color:#cbd5e1;padding:10px 12px;cursor:pointer}
+    .tiny{font-size:12px;color:var(--muted)}
+    .tabs{display:flex;gap:8px;margin:10px 0 16px}
+    .tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;cursor:pointer;background:#0b1021;color:#cbd5e1}
+    .tab.active{background:var(--accent);color:#0b1021;border-color:transparent}
+    .panel{display:none}
+    .panel.active{display:block}
+    .sec{background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px}
+    .sec h3{margin:0 0 8px;font-size:18px}
+    ul{margin:6px 0 0 18px}
+    pre{white-space:pre-wrap;background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:12px;max-height:420px;overflow:auto}
+    .kvs{display:grid;gap:8px}
+    .kvs .item{display:flex;gap:10px}
+    .kvs .key{min-width:150px;color:#a5b4fc}
+    .ok{color:var(--good)}
+    .warning{color:var(--warn)}
+    .photo-box{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+    .thumb{width:160px;height:120px;object-fit:cover;border:1px solid var(--border);border-radius:10px;background:#0b1021;display:none}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>AI Tutor — Step-by-Step Solver</h1>
+  <div class="wrap">
+    <div class="card">
+      <h1>AI Tutor — Solve & Chat</h1>
+      <p class="sub">Enter your API Key once, then switch between <b>Solve</b> and <b>Chat</b> tabs.</p>
 
-    <label>API Base</label>
-    <input id="apiBase" placeholder="auto detect (leave empty)" />
+      <!-- Global settings -->
+      <div class="row">
+        <div>
+          <label>API Base</label>
+          <input id="base" placeholder="auto detect (leave empty)" />
+        </div>
+        <div>
+          <label>API Key (<code>x-api-key</code>)</label>
+          <input id="key" placeholder="your API key, e.g., mySecretKey2025" />
+        </div>
+      </div>
 
-    <label>API Key (x-api-key)</label>
-    <input id="apiKeyInput" placeholder="your API key" />
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" data-tab="solve">Solve</div>
+        <div class="tab" data-tab="chat">Chat</div>
+      </div>
 
-    <label>Difficulty</label>
-    <select id="difficultySelect">
-      <option value="easy">easy</option>
-      <option value="medium" selected>medium</option>
-      <option value="hard">hard</option>
-    </select>
+      <!-- Solve panel -->
+      <div id="panel-solve" class="panel active">
+        <div class="row">
+          <div>
+            <label>Difficulty</label>
+            <select id="diff"><option>easy</option><option selected>medium</option><option>hard</option></select>
+          </div>
+        </div>
 
-    <label>Problem</label>
-    <textarea id="problemInput" placeholder="Enter your problem..."></textarea>
+        <label>Upload Problem Image (optional)</label>
+        <div class="photo-box">
+          <input id="file" type="file" accept="image/*" />
+          <img id="preview" class="thumb" alt="preview" />
+          <button id="clearPhoto" class="ghost" style="display:none;">Clear Photo</button>
+          <span class="tiny">You can upload a photo of the problem or just type it below.</span>
+        </div>
 
-    <label>Upload Problem Image</label>
-    <input type="file" id="imageInput" accept="image/*">
+        <label>Problem</label>
+        <textarea id="q">Solve 2x + 3 = 11</textarea>
 
-    <button id="solveBtn">Solve</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button id="go">Solve</button>
+          <button id="toggleRawSolve" class="ghost" disabled>Show Raw</button>
+          <span id="statusSolve" class="tiny"></span>
+        </div>
 
-    <h3>Result</h3>
-    <pre id="result">Result will appear here…</pre>
+        <div id="prettySolve"></div>
+        <pre id="rawSolve" style="display:none;"></pre>
+      </div>
+
+      <!-- Chat panel -->
+      <div id="panel-chat" class="panel">
+        <label>System Prompt (optional)</label>
+        <textarea id="sys">You are a helpful tutor. Answer clearly with step-by-step reasoning when helpful.</textarea>
+
+        <label>User Message</label>
+        <textarea id="usr">Explain Pythagoras theorem.</textarea>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button id="chatBtn">Send</button>
+          <button id="toggleRawChat" class="ghost" disabled>Show Raw</button>
+          <span id="statusChat" class="tiny"></span>
+        </div>
+
+        <div id="prettyChat"></div>
+        <pre id="rawChat" style="display:none;"></pre>
+      </div>
+    </div>
   </div>
 
-  <script>
-    document.getElementById("solveBtn").onclick = async () => {
-      const problem = document.getElementById("problemInput").value;
-      const difficulty = document.getElementById("difficultySelect").value;
-      const apiKey = document.getElementById("apiKeyInput").value;
-      const baseUrl = document.getElementById("apiBase").value || "";
-      const imageFile = document.getElementById("imageInput").files[0];
+<script>
+  // ====== helpers ======
+  const $ = id => document.getElementById(id);
+  const apiBase = () => $('base').value.trim() || location.origin;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  const list = arr => (!arr || !arr.length) ? '<span class="tiny">—</span>' : '<ul>' + arr.map(x=>`<li>${esc(x)}</li>`).join('') + '</ul>';
+  function section(title, inner){ return `<div class="sec"><h3>${title}</h3>${inner}</div>` }
+  function kv(title, kvobj){
+    const rows = Object.entries(kvobj||{}).filter(([,v])=>v!=null && v!=='' && !(Array.isArray(v)&&v.length===0));
+    if(!rows.length) return '';
+    return section(title, `<div class="kvs">${rows.map(([k,v])=>`
+      <div class="item"><div class="key">${esc(k)}</div><div class="val">${Array.isArray(v)?list(v):esc(v)}</div></div>
+    `).join('')}</div>`);
+  }
 
-      let imageBase64 = null;
-      if (imageFile) {
-        imageBase64 = await toBase64(imageFile);
-      }
+  // ====== tabs ======
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      tab.classList.add('active');
+      const id = 'panel-' + tab.dataset.tab;
+      $(id).classList.add('active');
+    });
+  });
 
-      const res = await fetch((baseUrl || "") + "/v1/solve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey
-        },
-        body: JSON.stringify({
-          text: problem,
-          image_url: imageBase64,   // 👈 把拍照/上传的图片传到后端
-          difficulty: difficulty,
-          require_explanation: true
-        })
+  // ====== Solve (with optional photo) ======
+  let imageDataUrl = '';
+  $('file').addEventListener('change', async e=>{
+    const f = e.target.files?.[0];
+    if(!f){ clearPhoto(); return; }
+    if(!f.type.startsWith('image/')){ alert('Please choose an image file.'); clearPhoto(); return; }
+    const reader = new FileReader();
+    reader.onload = ()=>{ imageDataUrl = reader.result; $('preview').src = imageDataUrl; $('preview').style.display='block'; $('clearPhoto').style.display='inline-block'; };
+    reader.readAsDataURL(f);
+  });
+  $('clearPhoto').onclick = (ev)=>{ ev.preventDefault(); clearPhoto(); };
+  function clearPhoto(){ imageDataUrl=''; $('file').value=''; $('preview').style.display='none'; $('preview').src=''; $('clearPhoto').style.display='none'; }
+
+  $('go').onclick = async ()=>{
+    const base = apiBase();
+    const key  = $('key').value.trim();
+    const diff = $('diff').value;
+    const text = $('q').value.trim();
+
+    $('statusSolve').textContent = 'Running…';
+    $('go').disabled = true; $('toggleRawSolve').disabled = true;
+    $('prettySolve').innerHTML = ''; $('rawSolve').style.display='none'; $('rawSolve').textContent='';
+
+    try{
+      const payload = { text, difficulty: diff, require_explanation: true };
+      if(imageDataUrl) payload.image_url = imageDataUrl;
+
+      const res = await fetch(base + '/v1/solve', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key': key },
+        body: JSON.stringify(payload)
       });
+      const raw = await res.text();
+      $('rawSolve').textContent = raw;
+      $('toggleRawSolve').disabled = false;
+      if(!res.ok) throw new Error(`HTTP ${res.status}\n\n${raw}`);
 
-      const data = await res.json();
-      document.getElementById("result").textContent = JSON.stringify(data, null, 2);
-    };
+      let data = {};
+      try{ data = JSON.parse(raw); }catch{ data = { steps:['Raw response'], solution:{final_answer:''}, raw }; }
 
-    // helper: File → Base64
-    function toBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-      });
+      // pretty render
+      const steps   = Array.isArray(data.steps)?data.steps:[];
+      const hints   = Array.isArray(data.hints)?data.hints:[];
+      const cm      = Array.isArray(data.common_mistakes)?data.common_mistakes:[];
+      const pv      = data.pedagogy_view || {};
+      const norm    = data.normalized_problem || {};
+      const final   = (data.solution && (data.solution.final_answer || data.solution.answer)) || (steps[steps.length-1]||'');
+
+      let html = '';
+      html += kv('Problem', { text: norm.text || text });
+      html += section('Steps', list(steps));
+      if(final) html += section('Final Answer', `<div style="font-size:18px;font-weight:700">${esc(final)}</div>`);
+      if(hints.length) html += section('Hints', list(hints));
+      if(cm.length)    html += section('Common Mistakes', list(cm));
+      if(data.check)   html += section('Check', esc(data.check));
+      const pvkv = {};
+      if(pv.socratic_questions?.length) pvkv['Socratic questions'] = pv.socratic_questions;
+      if(pv.misconceptions?.length)     pvkv['Misconceptions']    = pv.misconceptions;
+      if(Object.keys(pvkv).length) html += kv('Pedagogy View', pvkv);
+      $('prettySolve').innerHTML = html || '<div class="tiny">No content.</div>';
+    }catch(err){
+      $('prettySolve').innerHTML = section('Error', `<pre>${esc(err.message||err)}</pre>`);
+    }finally{
+      $('statusSolve').textContent = '';
+      $('go').disabled = false;
     }
-  </script>
+  };
+  $('toggleRawSolve').onclick = ()=>{ const el=$('rawSolve'); el.style.display = (el.style.display==='none'?'block':'none'); $('toggleRawSolve').textContent = el.style.display==='none'?'Show Raw':'Hide Raw'; };
+
+  // ====== Chat ======
+  $('chatBtn').onclick = async ()=>{
+    const base = apiBase();
+    const key  = $('key').value.trim();
+    const sys  = $('sys').value.trim();
+    const usr  = $('usr').value.trim();
+
+    $('statusChat').textContent = 'Sending…';
+    $('chatBtn').disabled = true; $('toggleRawChat').disabled = true;
+    $('prettyChat').innerHTML = ''; $('rawChat').style.display='none'; $('rawChat').textContent='';
+
+    try{
+      const payload = {
+        messages: [
+          ...(sys ? [{ role:'system', content: sys }] : []),
+          { role:'user', content: usr }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      };
+      const res = await fetch(base + '/v1/chat/completions', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key': key },
+        body: JSON.stringify(payload)
+      });
+      const raw = await res.text();
+      $('rawChat').textContent = raw;
+      $('toggleRawChat').disabled = false;
+      if(!res.ok) throw new Error(`HTTP ${res.status}\n\n${raw}`);
+
+      let data = {};
+      try{ data = JSON.parse(raw); }catch{ data = { content: raw, model:'', elapsed_ms:0 }; }
+
+      const content = data.content || '';
+      const model   = data.model || '';
+      const ms      = data.elapsed_ms!=null ? data.elapsed_ms : '';
+      let html = '';
+      if(content) html += section('Assistant', `<div>${esc(content)}</div>`);
+      const meta = {};
+      if(model) meta['model'] = model;
+      if(ms!=='') meta['elapsed_ms'] = ms;
+      if(Object.keys(meta).length) html += kv('Meta', meta);
+      $('prettyChat').innerHTML = html || '<div class="tiny">No content.</div>';
+    }catch(err){
+      $('prettyChat').innerHTML = section('Error', `<pre>${esc(err.message||err)}</pre>`);
+    }finally{
+      $('statusChat').textContent = '';
+      $('chatBtn').disabled = false;
+    }
+  };
+  $('toggleRawChat').onclick = ()=>{ const el=$('rawChat'); el.style.display = (el.style.display==='none'?'block':'none'); $('toggleRawChat').textContent = el.style.display==='none'?'Show Raw':'Hide Raw'; };
+</script>
 </body>
 </html>
