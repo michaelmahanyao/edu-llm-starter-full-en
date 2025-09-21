@@ -2,94 +2,228 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AI Tutor Demo</title>
+  <title>AI Tutor — Step-by-Step Solver</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- 可选：MathJax 渲染 LaTeX（后端若返回 latex 字段会自动渲染） -->
+  <script>
+    window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <style>
-    :root{--bg:#0b1021;--card:#121836;--text:#eef2ff;--muted:#94a3b8;--accent:#60a5fa}
-    html,body{height:100%} body{margin:0;background:linear-gradient(135deg,#0f172a,#0b1021);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:880px;margin:40px auto;padding:24px}
-    .card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:20px 24px}
-    h1{margin:0 0 8px;font-size:28px} .sub{color:var(--muted);margin:0 0 18px}
+    :root{--bg:#0b1021;--card:#111735;--text:#eef2ff;--muted:#94a3b8;--accent:#60a5fa;--border:#263056;--good:#22c55e;--warn:#f59e0b}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(135deg,#0f172a,#0b1021);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:980px;margin:40px auto;padding:20px}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.35);padding:22px;border:1px solid var(--border)}
+    h1{margin:0 0 6px;font-size:28px}
+    .sub{color:var(--muted);margin:0 0 16px}
     label{display:block;margin:14px 0 6px;color:#cbd5e1}
-    textarea{width:100%;min-height:120px;border:1px solid #263056;background:#0b1021;color:var(--text);padding:12px;border-radius:10px}
-    select,input{border:1px solid #263056;background:#0b1021;color:var(--text);padding:10px;border-radius:10px}
+    textarea{width:100%;min-height:120px;border:1px solid var(--border);background:#0b1021;color:var(--text);padding:12px;border-radius:10px}
+    input,select{border:1px solid var(--border);background:#0b1021;color:var(--text);padding:10px;border-radius:10px;width:100%}
     .row{display:flex;gap:12px;flex-wrap:wrap}
-    .row>*{flex:1 1 220px}
-    button{background:var(--accent);border:0;color:#0b1021;padding:12px 18px;border-radius:12px;font-weight:700;cursor:pointer}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    pre{white-space:pre-wrap;background:#0b1021;border:1px solid #263056;border-radius:12px;padding:12px;margin-top:14px;max-height:420px;overflow:auto}
-    .tiny{font-size:12px;color:#94a3b8}
+    .row>*{flex:1 1 240px}
+    .btn{background:var(--accent);border:0;color:#0b1021;padding:12px 18px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .tiny{font-size:12px;color:var(--muted)}
+    .grid{display:grid;gap:14px}
+    .sec{background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:14px}
+    .sec h3{margin:0 0 8px;font-size:18px}
+    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;background:#0b1021;border:1px solid var(--border);color:#cbd5e1;font-size:12px}
+    .kvs{display:grid;gap:8px}
+    .kvs .item{display:flex;gap:10px}
+    .kvs .key{min-width:150px;color:#a5b4fc}
+    ul{margin:6px 0 0 18px}
+    .ok{color:var(--good)} .warn{color:var(--warn)}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .ghost{background:transparent;border:1px solid var(--border);color:#cbd5e1;padding:10px 12px;border-radius:10px;cursor:pointer}
+    pre.raw{white-space:pre-wrap;background:#0b1021;border:1px solid var(--border);border-radius:12px;padding:12px;max-height:420px;overflow:auto}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <h1>AI Tutor — Step-by-Step Solver</h1>
-      <p class="sub">Enter a problem, choose difficulty, click Solve. Uses <code>/v1/solve</code>.</p>
-
-      <label>API Base</label>
-      <input id="base" value="" placeholder="auto detect (leave empty)" />
+      <p class="sub">Enter a problem, choose difficulty, click <b>Solve</b>. Uses <code>/v1/solve</code>.</p>
 
       <div class="row">
         <div>
+          <label>API Base</label>
+          <input id="base" placeholder="auto detect (leave empty)">
+        </div>
+        <div>
           <label>API Key (<code>x-api-key</code>)</label>
-          <input id="key" value="mySecretKey2025" />
+          <input id="key" value="mySecretKey2025">
         </div>
         <div>
           <label>Difficulty</label>
-          <select id="diff">
-            <option>easy</option><option selected>medium</option><option>hard</option>
-          </select>
+          <select id="diff"><option>easy</option><option selected>medium</option><option>hard</option></select>
         </div>
       </div>
 
-      <label>Problem</label>
+      <label style="margin-top:12px">Problem</label>
       <textarea id="q">Solve 2x + 3 = 11</textarea>
 
-      <div style="margin:14px 0;">
-        <button id="go">Solve</button>
+      <div class="toolbar">
+        <button id="go" class="btn">Solve</button>
+        <button id="copy" class="ghost" title="Copy JSON result" disabled>Copy JSON</button>
+        <button id="toggle" class="ghost" title="Toggle raw JSON" disabled>Show Raw</button>
         <span id="status" class="tiny"></span>
       </div>
 
-      <pre id="out">Result will appear here…</pre>
-      <p class="tiny">Tip: set <code>DEMO_MODE=true</code> (no external LLM) or provide <code>PROVIDER_API_KEY</code> and <code>PROVIDER_BASE_URL</code> in environment to use real models.</p>
+      <div id="result" class="grid" style="margin-top:14px"></div>
+      <pre id="raw" class="raw" style="display:none;"></pre>
+
+      <p class="tiny" style="margin-top:10px">
+        Tip: set <code>DEMO_MODE=true</code> (no external LLM) or provide <code>PROVIDER_API_KEY</code> and
+        <code>PROVIDER_BASE_URL</code> in environment to use real models.
+      </p>
     </div>
   </div>
 
 <script>
-  const $ = (id)=>document.getElementById(id);
-  const resolveBase = ()=> {
-    const v = $('base').value.trim();
-    return v || (location.origin);
-  };
+const $ = id => document.getElementById(id);
+const apiBase = () => $('base').value.trim() || location.origin;
 
-  $('go').onclick = async () => {
-    const base = resolveBase();
-    const key  = $('key').value.trim();
-    const diff = $('diff').value;
-    const text = $('q').value.trim();
-    $('status').textContent = 'Running…';
-    $('go').disabled = true;
-    $('out').textContent = '';
+function renderList(list) {
+  if (!list || !list.length) return '<span class="tiny">—</span>';
+  return '<ul>' + list.map(x => `<li>${escapeHtml(x)}</li>`).join('') + '</ul>';
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function renderKV(title, kv) {
+  const rows = Object.entries(kv || {}).filter(([,v]) => v!=null && v!=='' && !(Array.isArray(v) && v.length===0));
+  if (!rows.length) return '';
+  return `
+    <div class="sec">
+      <h3>${title}</h3>
+      <div class="kvs">
+        ${rows.map(([k,v]) => `
+          <div class="item">
+            <div class="key">${escapeHtml(k)}</div>
+            <div class="val">${Array.isArray(v) ? renderList(v) : escapeHtml(v)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
 
-    try{
-      const res = await fetch(base + '/v1/solve', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': key
-        },
-        body: JSON.stringify({ text, difficulty: diff, require_explanation: true })
-      });
-      const raw = await res.text();
-      $('out').textContent = (res.ok ? raw : `HTTP ${res.status}\\n\\n` + raw);
-    }catch(err){
-      $('out').textContent = 'Network error: ' + err;
-    }finally{
-      $('status').textContent = '';
-      $('go').disabled = false;
-    }
-  };
+// 核心渲染：把后端 JSON -> 漂亮卡片
+async function renderResult(data) {
+  const el = $('result');
+  const rawEl = $('raw');
+  $('copy').disabled = false;
+  $('toggle').disabled = false;
+
+  rawEl.textContent = JSON.stringify(data, null, 2);
+
+  const steps = Array.isArray(data.steps) ? data.steps : [];
+  const hints = Array.isArray(data.hints) ? data.hints : [];
+  const mistakes = Array.isArray(data.common_mistakes) ? data.common_mistakes : [];
+  const pedagogy = data.pedagogy_view || {};
+  const normalized = data.normalized_problem || {};
+  const latex = data.latex;
+  const finalAns =
+    (data.solution && (data.solution.final_answer || data.solution.answer)) ||
+    (steps.length ? steps[steps.length-1] : '');
+
+  // 拼页面
+  let html = '';
+
+  // 题目&规范化
+  html += renderKV('Problem', { text: normalized.text || data.text || $('q').value.trim() });
+
+  // LaTeX（若有）
+  if (latex) {
+    html += `
+      <div class="sec">
+        <h3>LaTeX</h3>
+        <div>$$${escapeHtml(latex)}$$</div>
+      </div>`;
+  }
+
+  // 步骤
+  html += `
+    <div class="sec">
+      <h3>Steps</h3>
+      ${renderList(steps)}
+    </div>`;
+
+  // 最终答案
+  if (finalAns) {
+    html += `
+      <div class="sec">
+        <h3>Final Answer <span class="badge ok">✓</span></h3>
+        <div style="font-size:18px;font-weight:700">${escapeHtml(finalAns)}</div>
+      </div>`;
+  }
+
+  // 提示/常见错误/自检
+  if (hints.length)   html += `<div class="sec"><h3>Hints</h3>${renderList(hints)}</div>`;
+  if (mistakes.length) html += `<div class="sec"><h3>Common Mistakes</h3>${renderList(mistakes)}</div>`;
+  if (data.check)     html += `<div class="sec"><h3>Check</h3><div>${escapeHtml(data.check)}</div></div>`;
+
+  // 教学视角
+  const pv = {};
+  if (pedagogy.socratic_questions?.length) pv['Socratic questions'] = pedagogy.socratic_questions;
+  if (pedagogy.misconceptions?.length)     pv['Misconceptions']    = pedagogy.misconceptions;
+  if (Object.keys(pv).length) html += renderKV('Pedagogy View', pv);
+
+  // 其他元信息（可选）
+  const meta = {};
+  if (data.problem_id) meta['problem_id'] = data.problem_id;
+  if (data.knowledge_tags?.length) meta['knowledge_tags'] = data.knowledge_tags;
+  if (Object.keys(meta).length) html += renderKV('Meta', meta);
+
+  el.innerHTML = html || '<div class="tiny">No content.</div>';
+
+  // 渲染 LaTeX（如有）
+  if (window.MathJax) {
+    await MathJax.typesetPromise();
+  }
+}
+
+$('toggle').onclick = () => {
+  const raw = $('raw');
+  raw.style.display = raw.style.display === 'none' ? 'block' : 'none';
+  $('toggle').textContent = raw.style.display === 'none' ? 'Show Raw' : 'Hide Raw';
+};
+$('copy').onclick = async () => {
+  const raw = $('raw').textContent;
+  await navigator.clipboard.writeText(raw);
+  $('status').textContent = 'Copied JSON';
+  setTimeout(()=> $('status').textContent = '', 1200);
+};
+
+$('go').onclick = async () => {
+  const base = apiBase();
+  const key  = $('key').value.trim();
+  const diff = $('diff').value;
+  const text = $('q').value.trim();
+
+  $('result').innerHTML = '';
+  $('raw').style.display = 'none';
+  $('status').textContent = 'Running…';
+  $('go').disabled = true; $('copy').disabled = true; $('toggle').disabled = true;
+
+  try {
+    const res = await fetch(base + '/v1/solve', {
+      method:'POST',
+      headers: { 'Content-Type':'application/json', 'x-api-key': key },
+      body: JSON.stringify({ text, difficulty: diff, require_explanation: true })
+    });
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status}\n\n${raw}`);
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { data = { steps: ['Raw response'], solution:{final_answer:''}, raw }; }
+    await renderResult(data);
+  } catch (err) {
+    $('result').innerHTML = `<div class="sec"><h3 class="warn">Error</h3><pre class="raw">${escapeHtml(err.message || err)}</pre></div>`;
+  } finally {
+    $('status').textContent = '';
+    $('go').disabled = false;
+  }
+};
 </script>
 </body>
 </html>
