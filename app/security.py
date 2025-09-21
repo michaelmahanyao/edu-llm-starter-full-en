@@ -1,30 +1,30 @@
-# app/security.py
 import os, time
 from fastapi import Request, HTTPException
 
 API_KEY = os.getenv("API_KEY", "")
-RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
+RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))  # requests per IP per minute
 
-# 补充免认证路径
+# Exempt paths (no auth)
 _exempt_paths = {"/", "/v1/health", "/docs", "/openapi.json", "/redoc"}
 
+# naive in-memory store (for demos; use Redis in production)
 _request_log = {}
 
 async def api_guard(request: Request):
-    # 1) 放行 CORS 预检请求
+    # 1) Allow CORS preflight
     if request.method == "OPTIONS":
         return
 
-    # 2) 放行免认证路径
+    # 2) Allow exempt paths
     if request.url.path in _exempt_paths:
         return
 
-    # 3) 校验 API Key
+    # 3) API key check
     key = request.headers.get("x-api-key", "")
     if not API_KEY or key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing x-api-key")
 
-    # 4) 简单限流
+    # 4) Simple per-IP rate limit
     ip = request.client.host if request.client else "unknown"
     now = time.time()
     window = 60.0
