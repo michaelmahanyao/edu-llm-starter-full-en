@@ -1,1 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI Tutor Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{--bg:#0b1021;--card:#121836;--text:#eef2ff;--muted:#94a3b8;--accent:#60a5fa}
+    html,body{height:100%} body{margin:0;background:linear-gradient(135deg,#0f172a,#0b1021);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:880px;margin:40px auto;padding:24px}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:20px 24px}
+    h1{margin:0 0 8px;font-size:28px} .sub{color:var(--muted);margin:0 0 18px}
+    label{display:block;margin:14px 0 6px;color:#cbd5e1}
+    textarea{width:100%;min-height:120px;border:1px solid #263056;background:#0b1021;color:var(--text);padding:12px;border-radius:10px}
+    select,input{border:1px solid #263056;background:#0b1021;color:var(--text);padding:10px;border-radius:10px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row>*{flex:1 1 220px}
+    button{background:var(--accent);border:0;color:#0b1021;padding:12px 18px;border-radius:12px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    pre{white-space:pre-wrap;background:#0b1021;border:1px solid #263056;border-radius:12px;padding:12px;margin-top:14px;max-height:420px;overflow:auto}
+    .tiny{font-size:12px;color:#94a3b8}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>AI Tutor — Step-by-Step Solver</h1>
+      <p class="sub">Enter a problem, choose difficulty, click Solve. Uses <code>/v1/solve</code>.</p>
 
+      <label>API Base</label>
+      <input id="base" value="" placeholder="auto detect (leave empty)" />
+
+      <div class="row">
+        <div>
+          <label>API Key (<code>x-api-key</code>)</label>
+          <input id="key" value="mySecretKey2025" />
+        </div>
+        <div>
+          <label>Difficulty</label>
+          <select id="diff">
+            <option>easy</option><option selected>medium</option><option>hard</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Problem</label>
+      <textarea id="q">Solve 2x + 3 = 11</textarea>
+
+      <div style="margin:14px 0;">
+        <button id="go">Solve</button>
+        <span id="status" class="tiny"></span>
+      </div>
+
+      <pre id="out">Result will appear here…</pre>
+      <p class="tiny">Tip: set <code>DEMO_MODE=true</code> (no external LLM) or provide <code>PROVIDER_API_KEY</code> and <code>PROVIDER_BASE_URL</code> in environment to use real models.</p>
+    </div>
+  </div>
+
+<script>
+  const $ = (id)=>document.getElementById(id);
+  const resolveBase = ()=> {
+    const v = $('base').value.trim();
+    return v || (location.origin);
+  };
+
+  $('go').onclick = async () => {
+    const base = resolveBase();
+    const key  = $('key').value.trim();
+    const diff = $('diff').value;
+    const text = $('q').value.trim();
+    $('status').textContent = 'Running…';
+    $('go').disabled = true;
+    $('out').textContent = '';
+
+    try{
+      const res = await fetch(base + '/v1/solve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key
+        },
+        body: JSON.stringify({ text, difficulty: diff, require_explanation: true })
+      });
+      const raw = await res.text();
+      $('out').textContent = (res.ok ? raw : `HTTP ${res.status}\\n\\n` + raw);
+    }catch(err){
+      $('out').textContent = 'Network error: ' + err;
+    }finally{
+      $('status').textContent = '';
+      $('go').disabled = false;
+    }
+  };
+</script>
+</body>
+</html>
