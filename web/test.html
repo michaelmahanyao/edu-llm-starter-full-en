@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Full EN API Test</title>
+<style>body{font-family:sans-serif;max-width:800px;margin:40px auto}</style></head><body>
+<h1>Full English API Test</h1>
+<label>API Base: <input id="base" style="width:420px" value="http://localhost:8000"></label>
+<p><textarea id="q" rows="5" style="width:100%;">Solve: 2x + 3 = 11</textarea></p>
+<p>Difficulty:
+<select id="diff"><option>easy</option><option selected>medium</option><option>hard</option></select>
+<button onclick="solve()">POST /v1/solve</button></p>
+<pre id="out" style="background:#f5f5f5;padding:12px;"></pre>
+<script>
+async function solve(){
+  const base = document.getElementById('base').value;
+  const q = document.getElementById('q').value;
+  const difficulty = document.getElementById('diff').value;
+  const res = await fetch(base + '/v1/solve', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:q, difficulty})});
+  document.getElementById('out').textContent = JSON.stringify(await res.json(), null, 2);
+}
+</script>
+</body></html>
