@@ -1,9 +1,12 @@
+# app/main.py  —— 完整可用版
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.openapi.utils import get_openapi
-from fastapi.staticfiles import StaticFiles            # ⬅️ 新增：挂静态目录
-from fastapi.responses import RedirectResponse         # ⬅️ 新增：根路径跳转
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+import os
+
 from .routers import solve, chat
 from .security import api_guard
 
@@ -33,15 +36,20 @@ app.include_router(chat.router, prefix="/v1", tags=["chat"])
 def health():
     return {"status": "ok", "message": "English version running"}
 
-# 👉 挂载静态网页到 /web
-app.mount("/web", StaticFiles(directory="web", html=True), name="web")
+# ======== 静态网页：/web ========
+# 计算项目根目录（app/ 的上一级），确保能找到根目录下的 web/
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+WEB_DIR = os.path.join(BASE_DIR, "web")
 
-# 👉 根路径跳到 /web（若只想跳到 /docs，把 '/web' 改成 '/docs'）
+# 挂载静态资源；html=True 让 /web 自动返回 web/index.html
+app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="web")
+
+# 根路径跳转到 /web（如果想跳到 Swagger，改成 '/docs'）
 @app.get("/")
 def root():
     return RedirectResponse(url="/web")
 
-# 让 Swagger 顶部出现 Authorize（x-api-key）
+# ======== 让 Swagger 顶部有 Authorize（x-api-key） ========
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -55,7 +63,7 @@ def custom_openapi():
     schema["components"]["securitySchemes"]["ApiKeyAuth"] = {
         "type": "apiKey",
         "in": "header",
-        "name": "x-api-key"
+        "name": "x-api-key",
     }
     schema["security"] = [{"ApiKeyAuth": []}]
     app.openapi_schema = schema
