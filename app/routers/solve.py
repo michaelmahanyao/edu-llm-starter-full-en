@@ -96,10 +96,6 @@ def decode_data_url(data_url: str) -> Tuple[str, bytes]:
 # 调用模型：视觉 OCR（图片 → 文本）
 # =========================
 def ocr_extract_text_with_vision(image_url: str) -> str:
-    """
-    使用视觉模型把图片转换为纯文本题目。
-    支持 data URL 和 https URL（OpenAI 视觉输入都可）。
-    """
     if DEMO_MODE:
         return "[DEMO] OCR skipped: please connect a real vision model."
 
@@ -161,13 +157,7 @@ SOLVE_SYS_PROMPT = (
 
 
 def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> Dict[str, Any]:
-    """
-    使用文本模型生成解题步骤/答案。
-    DEMO_MODE: 返回固定演示数据。
-    真实模式: 调用 Chat Completions，要求返回 JSON。
-    """
     if DEMO_MODE or not PROVIDER_API_KEY:
-        # —— DEMO 输出 —— #
         return {
             "steps": [
                 "[DEMO] This is a demo explanation:",
@@ -178,13 +168,13 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
             ],
             "final_answer": "see the end of the explanation",
             "hints": [
-                "Read the problem, identify knowns and unknowns.",
-                "Neat the equation and simplify.",
-                "Substitute back to check",
+                "Read the problem carefully.",
+                "Simplify step by step.",
+                "Always check your answer.",
             ],
             "common_mistakes": [
-                "Missing units",
-                "Sign error when transposing terms",
+                "Sign errors",
+                "Arithmetic slips",
             ],
             "check": "Steps reviewed; conclusion consistent",
             "pedagogy_view": {
@@ -194,12 +184,10 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
                 ],
                 "misconceptions": [
                     "Confusing coefficients with exponents",
-                    "Dropping parentheses",
                 ],
             },
         }
 
-    # 真实模式：调用文本模型
     url = f"{PROVIDER_BASE_URL.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {PROVIDER_API_KEY}",
@@ -219,13 +207,12 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
             {"role": "system", "content": SOLVE_SYS_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
-        "response_format": {"type": "json_object"},  # OpenAI 新参数（确保返回 JSON）
+        "response_format": {"type": "json_object"},
     }
 
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=HTTP_TIMEOUT)
         if resp.status_code != 200:
-            # 尝试从错误中解析 JSON
             raise HTTPException(status_code=500, detail=f"LLM error: {resp.text[:500]}")
         data = resp.json()
         content = (
@@ -234,9 +221,7 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
             .get("content", "")
             .strip()
         )
-        # 解析 JSON
         out = json.loads(content)
-        # 容错：必要字段兜底
         out.setdefault("steps", [])
         out.setdefault("final_answer", "")
         out.setdefault("hints", [])
@@ -245,7 +230,6 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
         out.setdefault("pedagogy_view", {"socratic_questions": [], "misconceptions": []})
         return out
     except Exception as e:
-        # 回落：返回基本结构 + 错误说明
         return {
             "steps": ["[ERROR] text-model exception", str(e)],
             "final_answer": "",
@@ -257,27 +241,19 @@ def call_text_model_to_solve(problem_text: str, difficulty: str = "medium") -> D
 
 
 # =========================
-# /v1/solve 主路由
+# /solve 主路由（注意：这里不要再写 /v1）
 # =========================
-@router.post("/v1/solve", response_model=ProblemOutput)
+@router.post("/solve", response_model=ProblemOutput)
 async def solve_problem(input: ProblemInput, request: Request):
-    """
-    文本/图片 入口：
-    - 若有 image_url：先用视觉模型做 OCR → 得到题面文本
-    - 与 text 合并后交给文本模型生成步骤/答案
-    """
     t0 = time.time()
     raw_text = (input.text or "").strip()
     image_url = (input.image_url or "").strip()
     difficulty = (input.difficulty or "medium").lower()
 
-    # 1) OCR（图片 → 文本）
     extracted_text = ""
     if image_url:
-        # data URL / https URL 均可直接传给视觉模型
         extracted_text = ocr_extract_text_with_vision(image_url)
 
-    # 2) 合并题面：优先文本；如果两者都有，拼接
     problem_text = raw_text
     if not problem_text and extracted_text:
         problem_text = extracted_text
@@ -287,10 +263,8 @@ async def solve_problem(input: ProblemInput, request: Request):
     if not problem_text:
         raise HTTPException(status_code=400, detail="No problem text. Provide text or a valid image_url.")
 
-    # 3) 调用文本模型生成步骤/答案
     solve_out = call_text_model_to_solve(problem_text, difficulty=difficulty)
 
-    # 4) 归一化输出
     pid = f"prob_{uuid.uuid4().hex[:8]}"
     normalized = NormalizedProblem(
         text=problem_text,
@@ -318,8 +292,6 @@ async def solve_problem(input: ProblemInput, request: Request):
         ),
     )
 
-    # 你也可以在这里记录日志/耗时
     _elapsed = round((time.time() - t0) * 1000)
-    # print(f"/v1/solve handled in {_elapsed} ms")
-
     return final
+
