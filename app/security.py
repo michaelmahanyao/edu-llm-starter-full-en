@@ -48,3 +48,13 @@ async def api_guard(request: Request):
         raise HTTPException(status_code=429, detail="Too many requests, please slow down.")
     history.append(now)
     _request_log[ip] = history
+# app/security.py（节选）
+_EXEMPT_EXACT = {
+    "/",
+    "/v1/health",
+    "/v1/cors-check",    # ✅ 新增：CORS 自检接口无需 x-api-key
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/favicon.ico",
+}
