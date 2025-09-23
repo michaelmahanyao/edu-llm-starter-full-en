@@ -12,14 +12,32 @@ from .security import api_guard
 
 app = FastAPI(title="Edu LLM API (Full EN + API Key)", version="1.2.0")
 
-# 先注册业务路由
+# ✅ 先加 CORS，保证它是最外层
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8081",             # 你的本地前端
+        "https://edu-llm-starter.onrender.com",  # 如果有前端托管在这个域也可以加上
+        "*",                                  # 调试期兜底（可去掉）
+    ],
+    allow_credentials=False,   # 调试期先关 credentials，更容易观察到 * 生效
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 路由
 app.include_router(solve.router, prefix="/v1", tags=["solve"])
 app.include_router(chat.router,  prefix="/v1", tags=["chat"])
 
-# 健康检查等无需认证
+# 健康检查
 @app.get("/v1/health")
 def health():
     return {"status": "ok", "message": "English version running"}
+
+# ✅ CORS 验证接口（方便你直接在浏览器 Console 里 fetch 测）
+@app.get("/v1/cors-check")
+def cors_check():
+    return {"ok": True}
 
 # 静态 /web
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -30,20 +48,11 @@ app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="web")
 def root():
     return RedirectResponse(url="/web")
 
-# 你的 API Key & 限流中间件（放在内层）
+# 你的 API Key & 限流中间件（在 CORS 之后加）
 @app.middleware("http")
 async def guard_middleware(request: Request, call_next):
-    await api_guard(request)  # 里面已经放行 OPTIONS /web /docs 等
+    await api_guard(request)  # 里面已放行 OPTIONS /web /docs 等
     return await call_next(request)
-
-# ⚠️ 最后再加 CORS（包在最外层，确保异常响应也带 CORS 头）
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Swagger 顶部 Authorize（x-api-key）
 def custom_openapi():
