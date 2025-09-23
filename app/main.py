@@ -10,46 +10,44 @@ import os
 from .routers import solve, chat
 from .security import api_guard
 
-app = FastAPI(title="Edu LLM API (Full EN + API Key)", version="1.2.0")
+app = FastAPI(title="Edu LLM API (Full EN + API Key)", version="1.2.1")
 
-# CORS
+# ======== CORS 配置 ========
+# 开发环境允许所有来源，生产环境可以写成 ["https://你的域名.com"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*"],       # 开发环境先放开
+    allow_credentials=False,   # 用 header 鉴权，不需要 cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 全局中间件：API Key + 简易限流（security.py 已放行 OPTIONS、/、/docs 等）
+# ======== 全局中间件：API Key + 简易限流 ========
 @app.middleware("http")
 async def guard_middleware(request: Request, call_next):
     await api_guard(request)
     return await call_next(request)
 
-# 业务路由
+# ======== 业务路由 ========
 app.include_router(solve.router, prefix="/v1", tags=["solve"])
 app.include_router(chat.router, prefix="/v1", tags=["chat"])
 
-# 健康检查（免认证）
+# ======== 健康检查（免认证） ========
 @app.get("/v1/health")
 def health():
     return {"status": "ok", "message": "English version running"}
 
 # ======== 静态网页：/web ========
-# 计算项目根目录（app/ 的上一级），确保能找到根目录下的 web/
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 WEB_DIR = os.path.join(BASE_DIR, "web")
 
-# 挂载静态资源；html=True 让 /web 自动返回 web/index.html
 app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
-# 根路径跳转到 /web（如果想跳到 Swagger，改成 '/docs'）
 @app.get("/")
 def root():
     return RedirectResponse(url="/web")
 
-# ======== 让 Swagger 顶部有 Authorize（x-api-key） ========
+# ======== Swagger 加上 Authorize（x-api-key） ========
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
