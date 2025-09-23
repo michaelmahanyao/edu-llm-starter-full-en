@@ -12,10 +12,11 @@ from .security import api_guard
 
 app = FastAPI(title="Edu LLM API (Full EN + API Key)", version="1.2.0")
 
-# 先挂业务路由
+# 先注册业务路由
 app.include_router(solve.router, prefix="/v1", tags=["solve"])
 app.include_router(chat.router,  prefix="/v1", tags=["chat"])
 
+# 健康检查等无需认证
 @app.get("/v1/health")
 def health():
     return {"status": "ok", "message": "English version running"}
@@ -29,20 +30,19 @@ app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="web")
 def root():
     return RedirectResponse(url="/web")
 
-# 你的 API Key + 限流中间件（放在内层）
+# 你的 API Key & 限流中间件（放在内层）
 @app.middleware("http")
 async def guard_middleware(request: Request, call_next):
-    # security.py 里已经放行 OPTIONS / /web /docs /openapi.json /favicon.ico
-    await api_guard(request)
+    await api_guard(request)  # 里面已经放行 OPTIONS /web /docs 等
     return await call_next(request)
 
-# ⚠️ 把 CORS 放在“最后一行”，作为最外层中间件（能给所有响应，包括异常，补上 CORS 头）
+# ⚠️ 最后再加 CORS（包在最外层，确保异常响应也带 CORS 头）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],   # 覆盖 x-api-key、content-type 等
+    allow_headers=["*"],
 )
 
 # Swagger 顶部 Authorize（x-api-key）
