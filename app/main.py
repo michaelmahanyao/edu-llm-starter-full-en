@@ -91,3 +91,13 @@ async def all_exception_handler(request, exc):
         },
     )
 
+# app/main.py
+from fastapi import Request
+
+@app.get("/v1/whoami")
+async def whoami(req: Request):
+    return {
+        "x_api_key_header": req.headers.get("x-api-key"),
+        "api_key_env_is_set": bool(os.getenv("API_KEY")),
+    }
+
