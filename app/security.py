@@ -51,3 +51,6 @@ async def api_guard(request: Request):
         raise HTTPException(status_code=429, detail="Too many requests, please slow down.")
     history.append(now)
     _request_log[ip] = history
+    
+print(">>> [guard] API_KEY(env):", os.getenv("API_KEY"))
+print(">>> [guard] x-api-key(req):", request.headers.get("x-api-key"))
