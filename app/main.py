@@ -75,3 +75,19 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
+
+# app/main.py
+from fastapi.responses import JSONResponse
+import logging, traceback
+
+@app.exception_handler(Exception)
+async def all_exception_handler(request, exc):
+    logging.exception("UNHANDLED EXCEPTION on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "detail": str(exc),                    # 直接把错误返回
+        },
+    )
+
