@@ -7,29 +7,20 @@ RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))  # req/min per I
 
 # 精确放行：这些路径不需要 x-api-key
 _EXEMPT_EXACT = {
-    "/",                 # 根
-    "/v1/health",        # 健康检查
-    "/v1/cors-check",    # ✅ CORS 自检
-    "/docs",             # Swagger UI
-    "/openapi.json",     # OpenAPI
-    "/redoc",
-    "/favicon.ico",
+    "/", "/v1/health", "/v1/cors-check",
+    "/docs", "/openapi.json", "/redoc", "/favicon.ico",
 }
 
 # 前缀放行：整棵子树不需要 x-api-key
-_EXEMPT_PREFIXES = (
-    "/web",              # 静态网页
-    "/docs",             # Swagger 静态资源
-    "/static",
-)
+_EXEMPT_PREFIXES = ("/web", "/docs", "/static")
 
-# 简易限流：内存版
+# 内存限流
 _request_log = {}
 
 async def api_guard(request: Request):
     path = request.url.path
 
-    # 1) 必须放行 CORS 预检（OPTIONS），否则浏览器拿不到 CORS 头
+    # 1) 放行 CORS 预检
     if request.method == "OPTIONS":
         return
 
@@ -45,12 +36,8 @@ async def api_guard(request: Request):
     # 4) 限流（按 IP / 60s 窗口）
     ip = request.client.host if request.client else "unknown"
     now = time.time()
-    window = 60.0
-    history = [t for t in _request_log.get(ip, []) if now - t < window]
+    history = [t for t in _request_log.get(ip, []) if now - t < 60.0]
     if len(history) >= RATE_LIMIT_PER_MIN:
         raise HTTPException(status_code=429, detail="Too many requests, please slow down.")
     history.append(now)
     _request_log[ip] = history
-    
-print(">>> [guard] API_KEY(env):", os.getenv("API_KEY"))
-print(">>> [guard] x-api-key(req):", request.headers.get("x-api-key"))
